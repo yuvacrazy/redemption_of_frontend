@@ -3,3 +3,4 @@ requests>=2.31
 plotly>=5.18
 pandas>=2.0
 numpy>=1.25
+streamlit-lottie==0.0.5
