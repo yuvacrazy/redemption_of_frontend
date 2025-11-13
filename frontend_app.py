@@ -19,8 +19,8 @@ import plotly.graph_objects as go
 # ----------------------------
 # CONFIG
 # ----------------------------
-BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")  # e.g. https://smartpay-ai-backend.onrender.com
-API_KEY = os.getenv("API_KEY", "")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://redemption-of-ai.onrender.com/").rstrip("/")  # e.g. https://smartpay-ai-backend.onrender.com
+API_KEY = os.getenv("API_KEY")
 PREDICT_ENDPOINT = f"{BACKEND_URL}/predict" if BACKEND_URL else None
 
 HEADERS = {"Content-Type": "application/json"}
