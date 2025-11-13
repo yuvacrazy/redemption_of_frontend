@@ -1,16 +1,16 @@
 # frontend_app.py
 """
-SmartPay Frontend With Theme Picker + Animated Header + Elaborate Microcopy During Prediction
+SmartPay Frontend (Theme Picker + Animated Header + Predict Progress)
 - Tabs: Home | Prediction | Analysis | Model Insights
 - Theme Picker: Light / Dark / Corporate
-- Animated Header and Predict Progress micro-interaction with elaborate microcopy
+- Animated Header and Predict Progress micro-interaction
 - Payload matches backend schema of 12 fields
 """
 
 import os
 import time
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 import streamlit as st
 import requests
@@ -20,8 +20,8 @@ import pandas as pd
 # -------------------------
 # Config / Env
 # -------------------------
-BACKEND_URL = os.getenv("BACKEND_URL", "https://redemption-of-ai.onrender.com/").rstrip("/")  # e.g. https://smartpay-ai-backend.onrender.com
-API_KEY = os.getenv("API_KEY")
+BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")  # e.g. https://smartpay-ai-backend.onrender.com
+API_KEY = os.getenv("API_KEY", "")
 PREDICT_ENDPOINT = f"{BACKEND_URL}/predict" if BACKEND_URL else None
 HEADERS = {"Content-Type": "application/json"}
 if API_KEY:
@@ -63,7 +63,7 @@ THEMES = {
 }
 
 # -------------------------
-# UI: theme picker (sidebar)
+# UI: theme picker (top right via sidebar)
 # -------------------------
 with st.sidebar:
     st.markdown("## Theme")
@@ -75,7 +75,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("SmartPay • Developed By Yuvaraja P", unsafe_allow_html=True)
 
-# Apply chosen theme CSS variables
+# Apply chosen theme variables into CSS
 vars = THEMES[selected_theme]
 css = f"""
 <style>
@@ -119,7 +119,6 @@ body {{
 }}
 .salary-val {{ color: var(--accent1); font-size:36px; font-weight:800; }}
 .kpi {{ font-weight:700; font-size:20px; color: var(--text); }}
-.microcopy {{ color: var(--muted); font-size:14px; margin-top:6px; }}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -132,7 +131,7 @@ st.markdown("<div><h1 class='hero-title'>SmartPay — AI Salary Intelligence</h1
 st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Session state initialization
+# Session state
 # -------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -186,7 +185,7 @@ with tab_pred:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Output area layout
+    # Output area
     out_col_left, out_col_right = st.columns([1, 0.9], gap="large")
     with out_col_left:
         if predict_btn:
@@ -205,85 +204,50 @@ with tab_pred:
                 "company_size": company_size
             }
 
-            # MICROCOPY SCRIPT: a list of richer messages and small tips
-            microcopy_msgs: List[str] = [
-                "Preparing Candidate Profile And Validating Inputs...",
-                "Encoding Categorical Features And Building Feature Vector...",
-                "Looking Up Job Title Embeddings And Applying TF-IDF / SVD...",
-                "Running Model Inference — LightGBM Regressor Working...",
-                "Calibrating Confidence Intervals And Post-Processing...",
-                "Packaging Result — Formatting For Display..."
-            ]
-
-            # Additional small tips shown after prediction
-            post_msgs: List[str] = [
-                "Tip: Use Realistic Job Titles For Best Results.",
-                "Tip: Model Works Best With Common Companies & Locations.",
-                "Tip: For Exact Salary Predictions, Ensure Experience Level Is Accurate."
-            ]
-
-            # placeholders for dynamic display
-            status_placeholder = st.empty()
-            microcopy_placeholder = st.empty()
+            # Animated micro-interaction: progress bar + dynamic status messages
+            status = st.empty()
             progress = st.progress(0)
-
-            # start API call and animate microcopy toward progress
-            start_time = time.time()
-            r = None
-            api_exception = None
-
-            # Kick off request synchronously but animate UI while waiting
+            status_texts = [
+                "Sending Request To SmartPay Backend...",
+                "Model Inference Running — Aggregating Features...",
+                "Computing Salary Estimate...",
+                "Finalizing Results..."
+            ]
             try:
-                # send request
-                r = requests.post(PREDICT_ENDPOINT, json=payload, headers=HEADERS, timeout=25) if PREDICT_ENDPOINT else None
-            except Exception as ex:
-                api_exception = ex
+                # start network call concurrently with UX: call early (we'll await result after progress)
+                resp_holder = {}
+                def call_api():
+                    if not PREDICT_ENDPOINT:
+                        raise RuntimeError("BACKEND_URL Not Configured.")
+                    r = requests.post(PREDICT_ENDPOINT, json=payload, headers=HEADERS, timeout=25)
+                    return r
+
+                # start request (synchronous) but still update UI so user sees progress
+                # We'll perform small progress animation while request runs
+                start = time.time()
                 r = None
+                try:
+                    r = call_api()
+                except Exception as e:
+                    r = None
+                    api_err = e
 
-            # Determine animation pacing based on response arrival
-            # if response already returned quickly, show shorter animation; else, show full microcopy sequence
-            total_steps = 60
-            # compute how many steps to show per microcopy message
-            msgs = microcopy_msgs
-            n_msgs = len(msgs)
-            steps_per_msg = max(3, total_steps // max(1, n_msgs))
+                # Animate progress for up to ~2.0 seconds while waiting for/after request
+                total_steps = 40
+                for i in range(total_steps):
+                    pct = int((i+1)/total_steps * 100)
+                    progress.progress(min(pct, 100))
+                    # update status text rotating
+                    txt = status_texts[i % len(status_texts)]
+                    status.markdown(f"**{txt}**")
+                    time.sleep(0.03)  # smooth animate (~1.2s)
+                progress.progress(100)
+                status.markdown("**Done — Showing Result**")
 
-            step = 0
-            for i, msg in enumerate(msgs):
-                # progressive sub-steps for each message
-                for _ in range(steps_per_msg):
-                    step += 1
-                    pct = int(step / (steps_per_msg * n_msgs) * 100)
-                    if pct > 100:
-                        pct = 100
-                    progress.progress(pct)
-                    status_placeholder.markdown(f"**{msg}**")
-                    microcopy_placeholder.markdown(f"<div class='microcopy'>Processing... {i+1}/{n_msgs}</div>", unsafe_allow_html=True)
-                    # if API returned during the animation, we can accelerate
-                    if r is not None:
-                        # break small delay to speed to finish
-                        time.sleep(0.02)
-                    else:
-                        time.sleep(0.04)
-                # small pause between messages
-                if r is not None:
-                    time.sleep(0.02)
-                else:
-                    time.sleep(0.06)
+                if r is None:
+                    # network error
+                    raise RuntimeError(f"Prediction request failed: {api_err}")
 
-            # finalizing animation
-            progress.progress(100)
-            status_placeholder.markdown("**Finalizing Results...**")
-            microcopy_placeholder.markdown("<div class='microcopy'>Almost There...</div>", unsafe_allow_html=True)
-            time.sleep(0.12)
-
-            # handle API result
-            if r is None:
-                # network or missing endpoint
-                err_msg = f"Request Failed: {api_exception}" if api_exception else "Backend URL not configured."
-                st.error(err_msg)
-                st.session_state.last_result = None
-            else:
                 if r.status_code == 200:
                     data = r.json()
                     predicted = float(data.get("predicted_salary_usd", data.get("predicted_salary", 0.0)))
@@ -300,10 +264,6 @@ with tab_pred:
                     st.session_state.last_result = {"predicted": predicted, "low": low, "high": high}
                     st.session_state.last_payload = payload
 
-                    # post-microcopy suggestions (appears briefly)
-                    for pm in post_msgs:
-                        microcopy_placeholder.markdown(f"<div class='microcopy'>{pm}</div>", unsafe_allow_html=True)
-                        time.sleep(0.35)
                 else:
                     try:
                         err = r.json()
@@ -312,13 +272,14 @@ with tab_pred:
                     st.error(f"API Error {r.status_code}: {err}")
                     st.session_state.last_result = None
 
-            # clear placeholders after a short pause so result area looks clean
-            time.sleep(0.20)
-            progress.empty()
-            status_placeholder.empty()
-            microcopy_placeholder.empty()
+            except Exception as e:
+                st.error(f"Prediction Failed: {e}")
+                st.session_state.last_result = None
+            finally:
+                progress.empty()
+                status.empty()
 
-        # Display result if present
+        # Display result only if present
         if st.session_state.last_result:
             result = st.session_state.last_result
             predicted = result["predicted"]
@@ -372,7 +333,7 @@ with tab_pred:
 with tab_analysis:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
     st.markdown("### Dataset & System Analysis", unsafe_allow_html=True)
-    st.markdown("Click The Button To Request Backend Dataset Summary.", unsafe_allow_html=True)
+    st.markdown("Click Fetch To Get Backend Dataset Summary.", unsafe_allow_html=True)
     if st.button("Fetch Analysis"):
         try:
             if not BACKEND_URL:
@@ -421,4 +382,3 @@ with tab_insights:
 # Footer
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.markdown("<footer>SmartPay — Developed By <b>Yuvaraja P</b> | Final Year CSE (IoT), Paavai Engineering College</footer>", unsafe_allow_html=True)
-
