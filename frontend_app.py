@@ -1,57 +1,37 @@
 # frontend_app.py
 """
-SmartPay Frontend (Streamlit)
-- Theme Picker (Light/Dark/Corporate)
-- Lottie header (Laptop Productivity) + Lottie loader (AI Spinning Cube)
-- Animated microcopy and progress during prediction
+SmartPay Frontend With Theme Picker + Animated Header + Elaborate Microcopy During Prediction
 - Tabs: Home | Prediction | Analysis | Model Insights
-- Backend URL & API key configurable via sidebar (no code change required)
-- Payload / API flow unchanged (POST to {BACKEND_URL}/predict)
+- Theme Picker: Light / Dark / Corporate
+- Animated Header and Predict Progress micro-interaction with elaborate microcopy
+- Payload matches backend schema of 12 fields
 """
 
 import os
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, Any, List
 
-import requests
 import streamlit as st
+import requests
 import plotly.graph_objects as go
 import pandas as pd
 
-# Lottie helper
-from streamlit_lottie import st_lottie  # ensure streamlit-lottie in requirements.txt
+# -------------------------
+# Config / Env
+# -------------------------
+BACKEND_URL = os.getenv("BACKEND_URL", "https://redemption-of-ai.onrender.com/").rstrip("/")  # e.g. https://smartpay-ai-backend.onrender.com
+API_KEY = os.getenv("API_KEY")
+PREDICT_ENDPOINT = f"{BACKEND_URL}/predict" if BACKEND_URL else None
+HEADERS = {"Content-Type": "application/json"}
+if API_KEY:
+    HEADERS["x-api-key"] = API_KEY
 
-# ----------------------------
-# CONFIG (edit at runtime in sidebar; set env vars if you prefer)
-# ----------------------------
-DEFAULT_BACKEND = os.getenv("BACKEND_URL", "").rstrip("/")  # leave blank or set env var
-DEFAULT_API_KEY = os.getenv("API_KEY", "")  # set env var in deploy for production
+st.set_page_config(page_title="SmartPay — Salary Intelligence", page_icon="💼", layout="wide")
 
-# ----------------------------
-# LOTTIE ASSET URLs (CDN)
-# - Header (Laptop Productivity) and Loader (AI Spinning Cube)
-# - If you prefer other animations, swap the URLs.
-# ----------------------------
-HEADER_LOTTIE_URL = "https://assets9.lottiefiles.com/packages/lf20_jyhigb2b.json"  # Laptop-like/professional
-LOADER_LOTTIE_URL = "https://assets9.lottiefiles.com/packages/lf20_qp1q7mct.json"   # spinner / cube style
-
-# ----------------------------
-# Utility: load lottie JSON (cached)
-# ----------------------------
-@st.cache_data(show_spinner=False)
-def load_lottie_url(url: str):
-    try:
-        r = requests.get(url, timeout=6)
-        r.raise_for_status()
-        return r.json()
-    except Exception:
-        return None
-
-
-# ----------------------------
-# Theme definitions
-# ----------------------------
+# -------------------------
+# Theme definitions (CSS variable sets)
+# -------------------------
 THEMES = {
     "Light": {
         "--bg": "linear-gradient(180deg,#f6fbff 0%, #eef9ff 100%)",
@@ -82,43 +62,21 @@ THEMES = {
     },
 }
 
-
-# ----------------------------
-# Page config
-# ----------------------------
-st.set_page_config(page_title="SmartPay • AI Salary Intelligence",
-                   page_icon="💼", layout="wide")
-
-
-# ----------------------------
-# Sidebar: backend config + theme
-# ----------------------------
+# -------------------------
+# UI: theme picker (sidebar)
+# -------------------------
 with st.sidebar:
-    st.markdown("## SmartPay Settings")
-    backend_input = st.text_input("Backend Root URL (e.g. https://your-backend.com)", value=DEFAULT_BACKEND,
-                                 placeholder="Leave blank and set it here", help="Enter your backend root URL. App will POST to {URL}/predict")
-    api_key_input = st.text_input("API Key (optional)", value=DEFAULT_API_KEY,
-                                  placeholder="Optional: API key for backend", help="If your backend uses API key auth, paste it here.")
+    st.markdown("## Theme")
+    selected_theme = st.selectbox("Choose Theme", options=list(THEMES.keys()), index=2)
     st.markdown("---")
-    st.markdown("## UI Theme")
-    theme_choice = st.selectbox("Theme", options=list(THEMES.keys()), index=2)
+    st.markdown("**Backend**")
+    st.text_input("Backend URL", value=BACKEND_URL or "", key="sb_backend_url", help="Set BACKEND_URL environment variable for production")
+    st.text_input("API Key (optional)", value=API_KEY or "", key="sb_api_key", help="Set API_KEY environment variable for production")
     st.markdown("---")
-    st.markdown("Developed By **Yuvaraja P** — Final Year CSE (IoT), Paavai Engineering College", unsafe_allow_html=True)
+    st.markdown("SmartPay • Developed By Yuvaraja P", unsafe_allow_html=True)
 
-# Compute predict endpoint from sidebar input
-BACKEND_URL = backend_input.rstrip("/") if backend_input else ""
-PREDICT_ENDPOINT = f"{BACKEND_URL}/predict" if BACKEND_URL else None
-
-# HEADERS for requests
-HEADERS = {"Content-Type": "application/json"}
-if api_key_input:
-    HEADERS["x-api-key"] = api_key_input
-
-
-# ----------------------------
-# Apply theme CSS
-# ----------------------------
-vars = THEMES[theme_choice]
+# Apply chosen theme CSS variables
+vars = THEMES[selected_theme]
 css = f"""
 <style>
 :root {{
@@ -137,7 +95,7 @@ body {{
 }}
 .block-container {{ padding-top: 18px; padding-left:36px; padding-right:36px; }}
 .hero-title {{
-  font-size:40px; font-weight:800; margin:0;
+  font-size:42px; font-weight:800; margin:0;
   background: linear-gradient(90deg,var(--accent1), var(--accent2));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-size: 200% 100%;
@@ -151,39 +109,31 @@ body {{
 .small-muted {{ color: var(--muted); font-size:13px; }}
 .glass {{
   background: var(--card-bg);
-  border-radius:12px; padding:18px;
-  box-shadow: 0 8px 30px rgba(2,20,40,0.06);
+  border-radius:14px; padding:20px;
+  box-shadow: 0 10px 30px rgba(2,20,40,0.06);
   border: 1px solid var(--glass-border);
 }}
-.stButton>button {{
+.accent-btn {{
   background: linear-gradient(90deg,var(--accent1), var(--accent2));
-  color: white; border:none; border-radius:10px; padding:10px 14px; font-weight:700;
+  color: white; font-weight:700; border-radius:10px; padding:10px 16px; width:100%; border:none;
 }}
-.salary-val {{ color: var(--accent1); font-size:34px; font-weight:800; }}
-.kpi {{ font-weight:700; font-size:18px; color: var(--text); }}
+.salary-val {{ color: var(--accent1); font-size:36px; font-weight:800; }}
+.kpi {{ font-weight:700; font-size:20px; color: var(--text); }}
 .microcopy {{ color: var(--muted); font-size:14px; margin-top:6px; }}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
 
-
-# ----------------------------
-# Header: Lottie + Title (Laptop Productivity)
-# ----------------------------
-header_lottie_json = load_lottie_url(HEADER_LOTTIE_URL)
-st.markdown("<div style='display:flex; gap:18px; align-items:center;'>", unsafe_allow_html=True)
-if header_lottie_json:
-    # render Lottie (small)
-    st_lottie(header_lottie_json, height=80, key="header_lottie")
-st.markdown("<div><h1 class='hero-title'>SmartPay — AI Salary Intelligence</h1>"
-            "<div class='small-muted'>Predict · Analyze · Explain · Export Reports</div></div>",
-            unsafe_allow_html=True)
+# -------------------------
+# Header
+# -------------------------
+st.markdown("<div style='display:flex; justify-content:space-between; align-items:center;'>", unsafe_allow_html=True)
+st.markdown("<div><h1 class='hero-title'>SmartPay — AI Salary Intelligence</h1><div class='small-muted'>Predict. Analyze. Explain. Production Ready.</div></div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-
-# ----------------------------
-# Initialize session state
-# ----------------------------
+# -------------------------
+# Session state initialization
+# -------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 if "last_result" not in st.session_state:
@@ -191,34 +141,30 @@ if "last_result" not in st.session_state:
 if "last_payload" not in st.session_state:
     st.session_state.last_payload = None
 
-
-# ----------------------------
+# -------------------------
 # Tabs
-# ----------------------------
+# -------------------------
 tab_home, tab_pred, tab_analysis, tab_insights = st.tabs(["🏠 Home", "💰 Prediction", "📊 Analysis", "🧠 Model Insights"])
 
-
-# ----------------------------
+# -------------------------
 # HOME
-# ----------------------------
+# -------------------------
 with tab_home:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.markdown("## Project Overview")
-    st.markdown("SmartPay Is An AI-Powered Salary Prediction System With A Secure FastAPI Backend And A Professional Streamlit Frontend.")
-    st.markdown("**Quick Highlights**")
-    st.markdown("- Production-grade Backend With Optional API Key Authentication  \n- Interactive, Themed Frontend With Lottie Animations  \n- Predictive Model (LightGBM) For Annual Salary Estimation")
+    st.markdown("## Project Overview", unsafe_allow_html=True)
+    st.markdown("SmartPay Is An AI-Powered Salary Prediction System With Secure Backend (FastAPI) And A Professional Frontend (Streamlit).", unsafe_allow_html=True)
+    st.markdown("### Quick Features", unsafe_allow_html=True)
+    st.markdown("- Production Ready Backend With API Key Auth  \n- Clean, Themed UI With Animated Header  \n- Predictive Model (Regression) For Annual Salary", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-
-# ----------------------------
-# PREDICTION Tab
-# ----------------------------
+# -------------------------
+# PREDICTION
+# -------------------------
 with tab_pred:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.markdown("### Predict Salary")
-    st.markdown("<div class='small-muted'>Fill the form and press Predict. The output appears only after you click Predict.</div>", unsafe_allow_html=True)
+    st.markdown("### Predict Salary", unsafe_allow_html=True)
+    st.markdown("<div class='small-muted'>Fill The Form And Press Predict — Output Appears Only After Clicking Predict.</div>", unsafe_allow_html=True)
 
-    # --- form
     with st.form("predict_form"):
         col1, col2 = st.columns([1, 1], gap="small")
         with col1:
@@ -228,7 +174,7 @@ with tab_pred:
             marital_status = st.selectbox("Marital Status", ["Never Married", "Married", "Divorced", "Widowed", "Other"])
             hours_per_week = st.slider("Hours Per Week", min_value=1, max_value=100, value=40)
         with col2:
-            job_title = st.text_input("Job Title", value="Software Engineer")
+            job_title = st.text_input("Job Title", value="Data Engineer")
             experience_level = st.selectbox("Experience Level", ["junior", "mid", "senior"], index=0)
             employment_type = st.selectbox("Employment Type", ["FT", "PT", "CT", "FL"], index=0)
             employee_residence = st.text_input("Employee Residence (Country)", value="India")
@@ -236,16 +182,14 @@ with tab_pred:
             remote_ratio = st.selectbox("Remote Ratio (%)", [0, 25, 50, 75, 100], index=0)
             company_size = st.selectbox("Company Size", ["S", "M", "L"], index=1)
 
-        predict_btn = st.form_submit_button("🔍 Predict Salary")
+        predict_btn = st.form_submit_button("Predict Salary", help="Click to get prediction")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Output layout
-    left_col, right_col = st.columns([1.2, 0.8], gap="large")
-
-    with left_col:
+    # Output area layout
+    out_col_left, out_col_right = st.columns([1, 0.9], gap="large")
+    with out_col_left:
         if predict_btn:
-            # Prepare payload (matches backend schema you showed earlier)
             payload = {
                 "age": float(age),
                 "gender": gender,
@@ -261,83 +205,91 @@ with tab_pred:
                 "company_size": company_size
             }
 
-            # Microcopy messages (elaborate)
-            micro_msgs: List[str] = [
-                "Preparing And Validating Inputs...",
-                "Encoding Categorical Features...",
-                "Applying Job Title Embeddings (TF-IDF + SVD)...",
-                "Running Model Inference (LightGBM) ...",
-                "Calibrating Output And Confidence Range..."
+            # MICROCOPY SCRIPT: a list of richer messages and small tips
+            microcopy_msgs: List[str] = [
+                "Preparing Candidate Profile And Validating Inputs...",
+                "Encoding Categorical Features And Building Feature Vector...",
+                "Looking Up Job Title Embeddings And Applying TF-IDF / SVD...",
+                "Running Model Inference — LightGBM Regressor Working...",
+                "Calibrating Confidence Intervals And Post-Processing...",
+                "Packaging Result — Formatting For Display..."
             ]
 
-            # Show loader Lottie during inference (AI Spinning Cube)
-            loader_json = load_lottie_url(LOADER_LOTTIE_URL)
+            # Additional small tips shown after prediction
+            post_msgs: List[str] = [
+                "Tip: Use Realistic Job Titles For Best Results.",
+                "Tip: Model Works Best With Common Companies & Locations.",
+                "Tip: For Exact Salary Predictions, Ensure Experience Level Is Accurate."
+            ]
 
-            # placeholders
-            status_ph = st.empty()
-            micro_ph = st.empty()
-            lottie_ph = st.empty()
-            prog_ph = st.empty()
+            # placeholders for dynamic display
+            status_placeholder = st.empty()
+            microcopy_placeholder = st.empty()
+            progress = st.progress(0)
 
-            # start request (synchronously) — UI animation runs while waiting
+            # start API call and animate microcopy toward progress
+            start_time = time.time()
             r = None
-            api_err = None
-            try:
-                if PREDICT_ENDPOINT is None:
-                    raise RuntimeError("Backend URL not configured. Paste backend root URL in sidebar (e.g. https://your-backend.com)")
+            api_exception = None
 
-                # Start request
-                # We still animate microcopy to show progress; request can be fast or slow.
-                # Request is synchronous; microcopy + progress are visual only (no backend change).
-                # We intentionally do the request before long animation so small fast responses still show microcopy briefly.
-                r = requests.post(PREDICT_ENDPOINT, json=payload, headers=HEADERS, timeout=25)
+            # Kick off request synchronously but animate UI while waiting
+            try:
+                # send request
+                r = requests.post(PREDICT_ENDPOINT, json=payload, headers=HEADERS, timeout=25) if PREDICT_ENDPOINT else None
             except Exception as ex:
-                api_err = ex
+                api_exception = ex
                 r = None
 
-            # Animate microcopy + progress while we have response or until finished animation
-            total_ticks = 50
-            per_msg_ticks = max(4, total_ticks // max(1, len(micro_msgs)))
-            tick = 0
-            if loader_json:
-                lottie_ph.st_lottie(loader_json, height=140, key=f"loader_{datetime.utcnow().timestamp()}")
+            # Determine animation pacing based on response arrival
+            # if response already returned quickly, show shorter animation; else, show full microcopy sequence
+            total_steps = 60
+            # compute how many steps to show per microcopy message
+            msgs = microcopy_msgs
+            n_msgs = len(msgs)
+            steps_per_msg = max(3, total_steps // max(1, n_msgs))
 
-            for i, m in enumerate(micro_msgs):
-                for _ in range(per_msg_ticks):
-                    tick += 1
-                    pct = int(tick / (per_msg_ticks * len(micro_msgs)) * 100)
+            step = 0
+            for i, msg in enumerate(msgs):
+                # progressive sub-steps for each message
+                for _ in range(steps_per_msg):
+                    step += 1
+                    pct = int(step / (steps_per_msg * n_msgs) * 100)
                     if pct > 100:
                         pct = 100
-                    prog_ph.progress(pct)
-                    status_ph.markdown(f"**{m}**")
-                    micro_ph.markdown(f"<div class='microcopy'>Step {i+1}/{len(micro_msgs)}</div>", unsafe_allow_html=True)
-                    # if request returned, speed the animation
+                    progress.progress(pct)
+                    status_placeholder.markdown(f"**{msg}**")
+                    microcopy_placeholder.markdown(f"<div class='microcopy'>Processing... {i+1}/{n_msgs}</div>", unsafe_allow_html=True)
+                    # if API returned during the animation, we can accelerate
                     if r is not None:
+                        # break small delay to speed to finish
                         time.sleep(0.02)
                     else:
-                        time.sleep(0.05)
+                        time.sleep(0.04)
+                # small pause between messages
+                if r is not None:
+                    time.sleep(0.02)
+                else:
+                    time.sleep(0.06)
 
-            # finalize
-            prog_ph.progress(100)
-            status_ph.markdown("**Finalizing Result...**")
-            micro_ph.markdown("<div class='microcopy'>Almost Done...</div>", unsafe_allow_html=True)
+            # finalizing animation
+            progress.progress(100)
+            status_placeholder.markdown("**Finalizing Results...**")
+            microcopy_placeholder.markdown("<div class='microcopy'>Almost There...</div>", unsafe_allow_html=True)
             time.sleep(0.12)
 
-            # Clear loader early if exists
-            lottie_ph.empty()
-
-            # Handle response
+            # handle API result
             if r is None:
-                st.error(f"Prediction request failed: {api_err or 'No backend URL provided.'}")
+                # network or missing endpoint
+                err_msg = f"Request Failed: {api_exception}" if api_exception else "Backend URL not configured."
+                st.error(err_msg)
                 st.session_state.last_result = None
             else:
                 if r.status_code == 200:
-                    j = r.json()
-                    predicted = float(j.get("predicted_salary_usd", j.get("predicted_salary", 0.0)))
-                    low = j.get("low") or predicted * 0.85
-                    high = j.get("high") or predicted * 1.15
+                    data = r.json()
+                    predicted = float(data.get("predicted_salary_usd", data.get("predicted_salary", 0.0)))
+                    low = data.get("low") or predicted * 0.85
+                    high = data.get("high") or predicted * 1.15
 
-                    # store history
                     st.session_state.history.insert(0, {
                         "ts": datetime.utcnow().isoformat(),
                         "payload": payload,
@@ -348,25 +300,30 @@ with tab_pred:
                     st.session_state.last_result = {"predicted": predicted, "low": low, "high": high}
                     st.session_state.last_payload = payload
 
+                    # post-microcopy suggestions (appears briefly)
+                    for pm in post_msgs:
+                        microcopy_placeholder.markdown(f"<div class='microcopy'>{pm}</div>", unsafe_allow_html=True)
+                        time.sleep(0.35)
                 else:
                     try:
-                        err_json = r.json()
+                        err = r.json()
                     except Exception:
-                        err_json = r.text
-                    st.error(f"API Error {r.status_code}: {err_json}")
+                        err = r.text
+                    st.error(f"API Error {r.status_code}: {err}")
                     st.session_state.last_result = None
 
-            # clear placeholders
-            prog_ph.empty()
-            status_ph.empty()
-            micro_ph.empty()
+            # clear placeholders after a short pause so result area looks clean
+            time.sleep(0.20)
+            progress.empty()
+            status_placeholder.empty()
+            microcopy_placeholder.empty()
 
-        # Display result if available
+        # Display result if present
         if st.session_state.last_result:
-            res = st.session_state.last_result
-            predicted = res["predicted"]
-            low = res["low"]
-            high = res["high"]
+            result = st.session_state.last_result
+            predicted = result["predicted"]
+            low = result["low"]
+            high = result["high"]
 
             # Gauge
             fig = go.Figure(go.Indicator(
@@ -376,7 +333,7 @@ with tab_pred:
                 title={"text": "Annual Salary (USD)", "font": {"size": 16}},
                 gauge={
                     "axis": {"range": [0, max(200000, high * 1.2)]},
-                    "bar": {"color": vars["--accent1"]},
+                    "bar": {"color": vars['--accent1']},
                     "steps": [
                         {"range": [0, predicted * 0.6], "color": "#f7fbff"},
                         {"range": [predicted * 0.6, predicted * 0.9], "color": "#eef7ff"},
@@ -394,78 +351,74 @@ with tab_pred:
                         f"<div style='font-weight:700; margin-top:6px;'>${float(low):,.0f} - ${float(high):,.0f}</div>"
                         f"</div>", unsafe_allow_html=True)
         else:
-            st.info("Predicted salary will appear here after clicking Predict.")
+            st.info("Predicted Salary Will Appear Here After Clicking Predict.")
 
-    with right_col:
+    with out_col_right:
         st.markdown("<div class='glass'>", unsafe_allow_html=True)
         st.markdown("### Recent Predictions")
         if not st.session_state.history:
-            st.markdown("<div class='small-muted'>No predictions yet.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='small-muted'>No Predictions Yet.</div>", unsafe_allow_html=True)
         else:
-            for entry in st.session_state.history[:6]:
-                ts = datetime.fromisoformat(entry["ts"]).strftime("%b %d %Y • %I:%M %p")
-                st.markdown(f"**${entry['predicted']:,.0f}**  •  {entry['payload']['job_title'].title()}  ")
-                st.markdown(f"<div class='small-muted'>{ts} • {entry['payload']['employee_residence']}</div>", unsafe_allow_html=True)
+            for h in st.session_state.history[:6]:
+                ts = datetime.fromisoformat(h["ts"]).strftime("%b %d %Y • %I:%M %p")
+                st.markdown(f"**${h['predicted']:,.0f}**  •  {h['payload']['job_title'].title()}  ")
+                st.markdown(f"<div class='small-muted'>{ts} — {h['payload']['employee_residence']}</div>", unsafe_allow_html=True)
                 st.markdown("---")
         st.markdown("</div>", unsafe_allow_html=True)
 
-
-# ----------------------------
+# -------------------------
 # ANALYSIS Tab
-# ----------------------------
+# -------------------------
 with tab_analysis:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.markdown("### Dataset & System Analysis")
-    st.markdown("Click the button to fetch backend analytics (records, avg salary, min/max).")
+    st.markdown("### Dataset & System Analysis", unsafe_allow_html=True)
+    st.markdown("Click The Button To Request Backend Dataset Summary.", unsafe_allow_html=True)
     if st.button("Fetch Analysis"):
-        if not BACKEND_URL:
-            st.error("Backend URL is not set in the sidebar.")
-        else:
-            try:
+        try:
+            if not BACKEND_URL:
+                st.error("Set BACKEND_URL environment variable.")
+            else:
                 resp = requests.get(f"{BACKEND_URL}/analyze", headers=HEADERS, timeout=20)
                 if resp.status_code == 200:
-                    summary = resp.json().get("summary", {})
+                    sm = resp.json().get("summary", {})
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Records", f"{summary.get('record_count', 'N/A'):,}")
-                    c2.metric("Avg Salary (USD)", f"${summary.get('average_salary', 'N/A'):,.2f}" if summary.get('average_salary') else "N/A")
-                    c3.metric("Max Salary (USD)", f"${summary.get('max_salary', 'N/A'):,.2f}" if summary.get('max_salary') else "N/A")
-                    st.json(summary)
+                    c1.metric("Records", f"{sm.get('record_count', 'N/A'):,}")
+                    c2.metric("Avg Salary (USD)", f"${sm.get('average_salary', 'N/A'):,.2f}" if sm.get('average_salary') else "N/A")
+                    c3.metric("Max Salary (USD)", f"${sm.get('max_salary', 'N/A'):,.2f}" if sm.get('max_salary') else "N/A")
+                    st.json(sm)
                 else:
-                    st.error(f"API Error {resp.status_code}: {resp.text}")
-            except Exception as e:
-                st.error(f"Failed to fetch analysis: {e}")
+                    st.error(f"API Error: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            st.error(f"Request failed: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-
-# ----------------------------
-# MODEL INSIGHTS Tab
-# ----------------------------
+# -------------------------
+# INSIGHTS Tab
+# -------------------------
 with tab_insights:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.markdown("### Model Insights / Explainability")
+    st.markdown("### Model Insights", unsafe_allow_html=True)
     if st.button("Fetch Model Insights"):
-        if not BACKEND_URL:
-            st.error("Backend URL is not set in the sidebar.")
-        else:
-            try:
+        try:
+            if not BACKEND_URL:
+                st.error("Set BACKEND_URL environment variable.")
+            else:
                 resp = requests.get(f"{BACKEND_URL}/explain", headers=HEADERS, timeout=20)
                 if resp.status_code == 200:
-                    top_features = resp.json().get("top_features", [])
-                    if top_features:
-                        df = pd.DataFrame(top_features)
+                    top = resp.json().get("top_features", [])
+                    if top:
+                        df = pd.DataFrame(top)
                         df["feature"] = df["feature"].apply(lambda x: str(x).replace("_", " ").title())
                         st.dataframe(df, use_container_width=True)
                     else:
-                        st.info("No top features returned by backend.")
+                        st.info("No feature importance returned.")
                 else:
-                    st.error(f"API Error {resp.status_code}: {resp.text}")
-            except Exception as e:
-                st.error(f"Failed to fetch insights: {e}")
+                    st.error(f"API Error: {resp.status_code}")
+        except Exception as e:
+            st.error(f"Request failed: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-
-# ----------------------------
 # Footer
-# ----------------------------
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.markdown("<footer>SmartPay — Developed By <b>Yuvaraja P</b> | Final Year CSE (IoT), Paavai Engineering College</footer>", unsafe_allow_html=True)
+
